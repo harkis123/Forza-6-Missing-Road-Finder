@@ -1,0 +1,777 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="theme-color" content="#0a0a0c">
+  <title>Forza Map Finder</title>
+  <meta name="description" content="Highlights undiscovered roads on the Forza Horizon map. Works with PC live screen capture and Xbox screenshots.">
+  <meta property="og:title" content="Forza Map Finder">
+  <meta property="og:description" content="Highlights undiscovered roads on the Forza Horizon map — PC live capture or Xbox screenshot upload.">
+  <meta property="og:type" content="website">
+  <meta property="og:image" content="./preview.png">
+  <link rel="icon"             type="image/x-icon" href="./favicon.ico">
+  <link rel="icon"             type="image/png"   sizes="16x16"  href="./favicon-16x16.png">
+  <link rel="icon"             type="image/png"   sizes="32x32"  href="./favicon-32x32.png">
+  <link rel="apple-touch-icon" sizes="180x180"    href="./apple-touch-icon.png">
+  <link rel="manifest" href="./manifest.json">
+  <style>
+    :root {
+      --bg:            #0a0a0c;
+      --bg-panel:      #131319;
+      --bg-elevated:   #1c1c22;
+      --bg-hover:      #23232a;
+      --border:        #26262d;
+      --border-strong: #353540;
+      --text:          #e4e4e7;
+      --text-dim:      #a1a1aa;
+      --text-faint:    #71717a;
+      --accent:        #6366f1;
+      --accent-strong: #4f46e5;
+      --accent-soft:   rgba(99, 102, 241, 0.10);
+      --success:       #22c55e;
+      --danger:        #f87171;
+      --sidebar-w:     300px;
+      --radius:        6px;
+      --radius-sm:     4px;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    [hidden] { display: none !important; }
+
+    html, body { height: 100%; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: "Inter", -apple-system, system-ui, "Segoe UI", sans-serif;
+      font-size: 13px;
+      line-height: 1.5;
+      display: grid;
+      grid-template-columns: var(--sidebar-w) 1fr;
+      grid-template-rows: 100%;
+      overflow: hidden;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+
+    /* ───── Sidebar ───── */
+    .sidebar {
+      background: var(--bg-panel);
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+      min-height: 0;
+    }
+
+    .brand {
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      gap: 11px;
+    }
+    .brand .logo {
+      width: 22px; height: 22px;
+      color: var(--text);
+    }
+    .brand-text { flex: 1; min-width: 0; }
+    .brand-name {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--text);
+      letter-spacing: -0.01em;
+      line-height: 1.2;
+    }
+    .brand-sub {
+      font-size: 11px;
+      font-weight: 500;
+      color: var(--text-faint);
+      letter-spacing: 0.02em;
+      margin-top: 1px;
+    }
+    .icon-btn {
+      background: transparent;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      width: 28px; height: 28px;
+      padding: 0;
+      color: var(--text-dim);
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      transition: color 0.12s, border-color 0.12s, background 0.12s;
+    }
+    .icon-btn:hover { color: var(--text); border-color: var(--border-strong); background: var(--bg-elevated); }
+    .icon-btn svg { width: 14px; height: 14px; }
+
+    .sidebar-body {
+      flex: 1;
+      overflow-x: hidden;
+      overflow-y: auto;
+      padding: 12px 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      scrollbar-width: thin;
+      scrollbar-color: var(--border-strong) transparent;
+    }
+    .sidebar-body::-webkit-scrollbar { width: 6px; }
+    .sidebar-body::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 3px; }
+    .sidebar-body::-webkit-scrollbar-track { background: transparent; }
+
+    /* Mode segmented control */
+    .seg {
+      display: flex;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 2px;
+      gap: 2px;
+    }
+    .seg-btn {
+      flex: 1;
+      padding: 6px 8px;
+      background: transparent;
+      color: var(--text-dim);
+      border: none;
+      border-radius: var(--radius-sm);
+      font-size: 12px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: color 0.12s, background 0.12s;
+      font-family: inherit;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+    }
+    .seg-btn svg { width: 14px; height: 14px; flex-shrink: 0; }
+    .seg-btn:hover:not(.active) { color: var(--text); }
+    .seg-btn.active {
+      background: var(--bg-elevated);
+      color: var(--text);
+      box-shadow: 0 1px 2px rgba(0,0,0,0.25), inset 0 0 0 1px var(--border-strong);
+    }
+
+    /* Sections */
+    .section { display: flex; flex-direction: column; gap: 6px; }
+    .section-title {
+      font-size: 10px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: var(--text-faint);
+      margin-bottom: 2px;
+    }
+
+    /* Buttons */
+    .btn {
+      padding: 7px 12px;
+      border-radius: var(--radius-sm);
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      border: 1px solid var(--border);
+      background: var(--bg-elevated);
+      color: var(--text);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 7px;
+      transition: background 0.12s, border-color 0.12s, color 0.12s;
+      font-family: inherit;
+      line-height: 1.2;
+    }
+    .btn:hover:not(:disabled) { background: var(--bg-hover); border-color: var(--border-strong); }
+    .btn:disabled { opacity: 0.45; cursor: not-allowed; }
+    .btn.primary {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: white;
+    }
+    .btn.primary:hover:not(:disabled) { background: var(--accent-strong); border-color: var(--accent-strong); }
+    .btn.block { width: 100%; }
+    .btn svg { width: 14px; height: 14px; flex-shrink: 0; }
+
+    .btn-row { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 4px; }
+
+    /* Color rows */
+    .color-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      padding: 7px 10px;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+    }
+    .color-row label {
+      font-size: 12px;
+      color: var(--text-dim);
+      font-weight: 500;
+    }
+    .color-swatch { display: flex; align-items: center; gap: 8px; }
+    .color-swatch input[type=color] {
+      width: 24px; height: 22px;
+      padding: 0;
+      border: 1px solid var(--border-strong);
+      border-radius: var(--radius-sm);
+      background: transparent;
+      cursor: pointer;
+      -webkit-appearance: none;
+      appearance: none;
+    }
+    .color-swatch input[type=color]::-webkit-color-swatch-wrapper { padding: 2px; }
+    .color-swatch input[type=color]::-webkit-color-swatch { border: none; border-radius: 2px; }
+    .color-swatch input[type=color]::-moz-color-swatch { border: none; border-radius: 2px; }
+    .hex {
+      font-family: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, monospace;
+      font-size: 11px;
+      color: var(--text);
+      letter-spacing: 0.02em;
+      min-width: 60px;
+      text-align: right;
+    }
+
+    /* Slider rows */
+    .slider-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+    }
+    .slider-row label {
+      font-size: 12px;
+      color: var(--text-dim);
+      font-weight: 500;
+    }
+    .slider-row .value {
+      font-family: ui-monospace, "SF Mono", Menlo, monospace;
+      font-size: 11px;
+      color: var(--text-dim);
+      letter-spacing: 0.02em;
+    }
+
+    input[type=range] {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 100%;
+      height: 3px;
+      background: var(--border);
+      border-radius: 2px;
+      outline: none;
+      cursor: pointer;
+      margin: 6px 0;
+    }
+    input[type=range]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 12px;
+      height: 12px;
+      background: var(--text);
+      border-radius: 50%;
+      cursor: pointer;
+      border: 2px solid var(--bg-panel);
+      transition: transform 0.1s;
+    }
+    input[type=range]::-webkit-slider-thumb:hover { transform: scale(1.15); }
+    input[type=range]::-moz-range-thumb {
+      width: 12px;
+      height: 12px;
+      background: var(--text);
+      border-radius: 50%;
+      cursor: pointer;
+      border: 2px solid var(--bg-panel);
+    }
+    input[type=range]:focus-visible::-webkit-slider-thumb { background: var(--accent); }
+
+    /* Custom checkbox */
+    .check {
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      cursor: pointer;
+      font-size: 13px;
+      color: var(--text);
+      user-select: none;
+    }
+    .check input { position: absolute; opacity: 0; pointer-events: none; }
+    .check .box {
+      width: 15px;
+      height: 15px;
+      border: 1px solid var(--border-strong);
+      border-radius: 3px;
+      background: var(--bg);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      transition: background 0.12s, border-color 0.12s;
+      flex-shrink: 0;
+    }
+    .check .box svg { width: 10px; height: 10px; color: white; opacity: 0; transition: opacity 0.1s; }
+    .check input:checked + .box { background: var(--accent); border-color: var(--accent); }
+    .check input:checked + .box svg { opacity: 1; }
+    .check input:focus-visible + .box { box-shadow: 0 0 0 3px var(--accent-soft); }
+
+    /* Status bar */
+    .statusbar {
+      padding: 7px 16px;
+      border-top: 1px solid var(--border);
+      font-size: 11px;
+      color: var(--text-dim);
+      font-family: ui-monospace, "SF Mono", Menlo, monospace;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      min-height: 30px;
+    }
+    .dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--text-faint);
+      flex-shrink: 0;
+    }
+    .statusbar.live .dot { background: var(--success); }
+    .statusbar.error .dot { background: var(--danger); }
+
+    /* ───── Main ───── */
+    .main {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      overflow: hidden;
+      position: relative;
+      padding: 0;
+      min-width: 0;
+      background: var(--bg);
+      touch-action: none;
+    }
+
+    canvas {
+      display: block;
+      image-rendering: pixelated;
+      border-radius: var(--radius-sm);
+      border: 1px solid var(--border);
+      transform-origin: center center;
+      cursor: grab;
+      will-change: transform;
+      user-select: none;
+    }
+    canvas:active { cursor: grabbing; }
+
+    .placeholder, .dropzone {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+      max-width: 460px;
+      padding: 32px 24px;
+    }
+    .placeholder h2, .dropzone h2 {
+      font-size: 16px;
+      font-weight: 600;
+      color: var(--text);
+      margin: 16px 0 6px;
+      letter-spacing: -0.01em;
+    }
+    .placeholder p, .dropzone p {
+      font-size: 13px;
+      color: var(--text-dim);
+      line-height: 1.6;
+    }
+    .placeholder-icon, .dropzone-icon {
+      width: 40px;
+      height: 40px;
+      color: var(--text-faint);
+    }
+
+    .dropzone {
+      border: 1px dashed var(--border-strong);
+      border-radius: var(--radius);
+      cursor: pointer;
+      background: var(--bg-panel);
+      transition: border-color 0.15s, background 0.15s;
+      width: min(520px, 100%);
+    }
+    .dropzone:hover, .dropzone.over {
+      border-color: var(--accent);
+      background: var(--accent-soft);
+    }
+    .dropzone:hover .dropzone-icon, .dropzone.over .dropzone-icon { color: var(--accent); }
+    .dropzone kbd {
+      background: var(--bg-elevated);
+      border: 1px solid var(--border-strong);
+      padding: 1px 5px;
+      border-radius: 3px;
+      font-size: 11px;
+      font-family: ui-monospace, Menlo, monospace;
+      color: var(--text);
+    }
+    #fileInput { display: none; }
+
+    /* ───── Hover tooltips ───── */
+    .has-tip { position: relative; }
+    .has-tip::after {
+      content: attr(data-tooltip);
+      position: absolute;
+      bottom: calc(100% + 6px);
+      left: 0;
+      width: max-content;
+      max-width: 240px;
+      padding: 8px 10px;
+      background: var(--bg-elevated);
+      border: 1px solid var(--border-strong);
+      border-radius: var(--radius-sm);
+      font-size: 11px;
+      line-height: 1.5;
+      color: var(--text);
+      font-weight: 400;
+      letter-spacing: normal;
+      text-transform: none;
+      text-decoration: none;
+      text-align: left;
+      pointer-events: none;
+      z-index: 50;
+      opacity: 0;
+      transition: opacity 0.15s 0.25s;
+      box-shadow: 0 6px 18px rgba(0,0,0,0.55);
+      white-space: normal;
+    }
+    .has-tip:hover::after,
+    .has-tip:focus-within::after { opacity: 1; }
+
+    /* ───── Help modal ───── */
+    .overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(8,8,10,0.7);
+      z-index: 100;
+      display: flex;
+      justify-content: center;
+      align-items: flex-start;
+      padding: 48px 20px;
+      overflow-y: auto;
+    }
+    .modal {
+      background: var(--bg-panel);
+      border: 1px solid var(--border-strong);
+      border-radius: var(--radius);
+      max-width: 640px;
+      width: 100%;
+      padding: 28px 32px;
+      position: relative;
+      color: var(--text);
+    }
+    .modal-close {
+      position: absolute;
+      top: 14px;
+      right: 14px;
+      background: transparent;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      width: 28px;
+      height: 28px;
+      color: var(--text-dim);
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .modal-close:hover { color: var(--text); background: var(--bg-elevated); }
+    .modal-close svg { width: 14px; height: 14px; }
+    .modal-body h2 { font-size: 18px; font-weight: 600; margin-bottom: 12px; color: var(--text); letter-spacing: -0.015em; }
+    .modal-body h3 {
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: var(--text-faint);
+      font-weight: 600;
+      margin: 22px 0 8px;
+    }
+    .modal-body p { color: var(--text-dim); margin-bottom: 10px; font-size: 13px; line-height: 1.65; }
+    .modal-body ol, .modal-body ul { padding-left: 20px; margin-bottom: 10px; color: var(--text-dim); font-size: 13px; line-height: 1.7; }
+    .modal-body li { margin-bottom: 3px; }
+    .modal-body strong { color: var(--text); font-weight: 600; }
+    .modal-body code {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      padding: 1px 5px;
+      border-radius: 3px;
+      font-size: 12px;
+      font-family: ui-monospace, Menlo, monospace;
+      color: var(--text);
+    }
+    .modal-body kbd {
+      background: var(--bg-elevated);
+      border: 1px solid var(--border-strong);
+      padding: 1px 5px;
+      border-radius: 3px;
+      font-size: 11px;
+      font-family: ui-monospace, Menlo, monospace;
+      color: var(--text);
+    }
+
+    /* ───── Responsive ───── */
+    @media (max-width: 880px) {
+      html, body { height: auto; min-height: 100%; }
+      body {
+        grid-template-columns: 1fr;
+        grid-template-rows: auto auto;
+        overflow-y: auto;
+      }
+      .sidebar {
+        height: auto;
+        border-right: none;
+        border-bottom: 1px solid var(--border);
+      }
+      .sidebar-body {
+        max-height: none;
+        overflow: visible;
+        padding: 14px 16px;
+      }
+      .statusbar { padding: 9px 16px; }
+      .main {
+        padding: 24px 16px 40px;
+        min-height: 60vh;
+        align-items: flex-start;
+        justify-content: center;
+      }
+      .dropzone, .placeholder { padding: 24px 16px; }
+      .has-tip::after {
+        /* On phones a tooltip floating in mid-air is more annoying than useful;
+           the controls are big enough that intent is clear. */
+        display: none;
+      }
+    }
+  </style>
+</head>
+<body>
+
+<aside class="sidebar">
+  <header class="brand">
+    <svg class="logo" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <polygon points="3 6 9 3 15 6 21 3 21 18 15 21 9 18 3 21 3 6"/>
+      <line x1="9" y1="3" x2="9" y2="18"/>
+      <line x1="15" y1="6" x2="15" y2="21"/>
+    </svg>
+    <div class="brand-text">
+      <div class="brand-name">Map Finder</div>
+      <div class="brand-sub">Forza Horizon</div>
+    </div>
+    <a id="ghLink" class="icon-btn" href="https://github.com/harkis123/Forza-6-Missing-Road-Finder" target="_blank" rel="noopener noreferrer" title="View source on GitHub" aria-label="View source on GitHub">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22"/>
+      </svg>
+    </a>
+    <button id="infoBtn" class="icon-btn" type="button" title="Help" aria-label="Help">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <circle cx="12" cy="12" r="10"/>
+        <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/>
+        <line x1="12" y1="17" x2="12.01" y2="17"/>
+      </svg>
+    </button>
+  </header>
+
+  <div class="sidebar-body">
+
+    <div class="seg" role="tablist" aria-label="Mode">
+      <button id="modePc"   class="seg-btn active has-tip" type="button" role="tab" aria-selected="true"
+              data-tooltip="Live screen capture. Pick your Forza window through the browser's Share Screen dialog.">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <rect x="2" y="4" width="20" height="13" rx="2"/>
+          <line x1="8" y1="21" x2="16" y2="21"/>
+          <line x1="12" y1="17" x2="12" y2="21"/>
+        </svg>
+        PC
+      </button>
+      <button id="modeXbox" class="seg-btn has-tip"        type="button" role="tab" aria-selected="false"
+              data-tooltip="Photo upload. Drop in an Xbox screenshot from the Xbox companion app, drag-and-drop, or Ctrl+V paste.">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <line x1="6" y1="11" x2="10" y2="11"/>
+          <line x1="8" y1="9" x2="8" y2="13"/>
+          <line x1="15" y1="12" x2="15.01" y2="12"/>
+          <line x1="18" y1="10" x2="18.01" y2="10"/>
+          <path d="M17.32 5H6.68a4 4 0 0 0-3.978 3.59c-.006.052-.01.101-.017.152C2.604 9.416 2 14.456 2 16a3 3 0 0 0 3 3c1 0 1.5-.5 2-1l1.414-1.414A2 2 0 0 1 9.828 16h4.344a2 2 0 0 1 1.414.586L17 18c.5.5 1 1 2 1a3 3 0 0 0 3-3c0-1.545-.604-6.584-.685-7.258-.007-.05-.011-.1-.017-.151A4 4 0 0 0 17.32 5z"/>
+        </svg>
+        Xbox
+      </button>
+      <button id="modePs"   class="seg-btn has-tip"        type="button" role="tab" aria-selected="false"
+              data-tooltip="Photo upload. Drop in a PlayStation screenshot (PS5 Create button, PS4 Share button) shared via the PlayStation App.">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <rect x="2" y="8" width="20" height="9" rx="4.5"/>
+          <circle cx="8" cy="12.5" r="1.5"/>
+          <circle cx="16" cy="12.5" r="1.5"/>
+        </svg>
+        PS
+      </button>
+    </div>
+
+    <section class="section">
+      <div class="section-title">Source</div>
+
+      <div class="mode-pc">
+        <button id="startBtn" class="btn primary block" type="button">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <polygon points="5 3 19 12 5 21 5 3" fill="currentColor"/>
+          </svg>
+          Share Screen
+        </button>
+        <div class="btn-row">
+          <button id="pauseBtn" class="btn" type="button" disabled>
+            <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+              <rect x="6" y="4" width="4" height="16" rx="1"/>
+              <rect x="14" y="4" width="4" height="16" rx="1"/>
+            </svg>
+            <span id="pauseLabel">Pause</span>
+          </button>
+          <button id="stopBtn" class="btn" type="button" disabled>
+            <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+              <rect x="5" y="5" width="14" height="14" rx="2"/>
+            </svg>
+            Stop
+          </button>
+        </div>
+      </div>
+
+      <div class="mode-photo" hidden>
+        <button id="uploadBtn" class="btn primary block" type="button">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+            <polyline points="17 8 12 3 7 8"/>
+            <line x1="12" y1="3" x2="12" y2="15"/>
+          </svg>
+          Upload screenshot
+        </button>
+        <button id="pasteBtn" class="btn block" type="button" style="margin-top:6px">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/>
+            <rect x="8" y="2" width="8" height="4" rx="1"/>
+          </svg>
+          Paste from clipboard
+        </button>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="section-title">Detection</div>
+      <div class="color-row has-tip"
+           data-tooltip="The colour the tool searches for. Forza paints undiscovered roads in this grey by default (#808080).">
+        <label for="colorTarget">Find</label>
+        <div class="color-swatch">
+          <span id="targetHex" class="hex">#808080</span>
+          <input type="color" id="colorTarget" value="#808080">
+        </div>
+      </div>
+      <div class="color-row has-tip"
+           data-tooltip="The colour painted over every match. Bright lime green is highly visible against the dimmed map.">
+        <label for="colorReplace">Replace</label>
+        <div class="color-swatch">
+          <span id="replaceHex" class="hex">#44FF00</span>
+          <input type="color" id="colorReplace" value="#44ff00">
+        </div>
+      </div>
+      <div class="has-tip" style="margin-top:4px"
+           data-tooltip="How far a pixel may drift from the Find colour and still count as a match. Keep it low (1–5) to stay sharp; only raise it if undiscovered roads aren't catching. Too high floods the map with false matches.">
+        <div class="slider-row">
+          <label for="tolerance">Tolerance</label>
+          <span class="value" id="tolValue">5</span>
+        </div>
+        <input type="range" id="tolerance" min="0" max="40" step="1" value="5">
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="section-title">Display</div>
+      <label class="check has-tip"
+             data-tooltip="Greys out every pixel that didn't match the Find colour, so the highlights pop against a monochrome map background.">
+        <input type="checkbox" id="greyscale" checked>
+        <span class="box" aria-hidden="true">
+          <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="2 6 5 9 10 3"/></svg>
+        </span>
+        Desaturate background
+      </label>
+      <div class="mode-pc has-tip" style="margin-top:4px"
+           data-tooltip="How often the live capture loop processes a new frame. Higher = smoother live updates but more CPU usage.">
+        <div class="slider-row">
+          <label for="fps">FPS</label>
+          <span class="value" id="fpsValue">1</span>
+        </div>
+        <input type="range" id="fps" min="0.1" max="30" step="0.1" value="1">
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="section-title">Output</div>
+      <button id="saveBtn" class="btn block has-tip" type="button" disabled
+              data-tooltip="Download the current processed frame as a timestamped PNG.">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+          <polyline points="7 10 12 15 17 10"/>
+          <line x1="12" y1="15" x2="12" y2="3"/>
+        </svg>
+        Save image
+      </button>
+      <button id="scaleBtn" class="btn block has-tip" type="button" style="margin-top:6px"
+              data-tooltip="Reset zoom and pan back to fit-to-window. Use the mouse wheel to zoom and drag the canvas to pan around.">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <polyline points="15 3 21 3 21 9"/>
+          <polyline points="9 21 3 21 3 15"/>
+          <line x1="21" y1="3" x2="14" y2="10"/>
+          <line x1="3" y1="21" x2="10" y2="14"/>
+        </svg>
+        <span id="scaleLabel">Reset view</span>
+      </button>
+    </section>
+
+  </div>
+
+  <footer id="statusbar" class="statusbar">
+    <span id="statusDot" class="dot"></span>
+    <span id="status">Idle</span>
+  </footer>
+</aside>
+
+<main id="canvas-wrap" class="main">
+  <div id="placeholder" class="placeholder mode-pc">
+    <svg class="placeholder-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <rect x="2" y="3" width="20" height="14" rx="2"/>
+      <line x1="8" y1="21" x2="16" y2="21"/>
+      <line x1="12" y1="17" x2="12" y2="21"/>
+    </svg>
+    <h2>Ready to capture</h2>
+    <p>Click <strong>Share Screen</strong> in the sidebar and pick your Forza Horizon window. Open the in-game map and undiscovered roads will be highlighted in real time.</p>
+  </div>
+
+  <div id="dropzone" class="dropzone mode-photo" hidden>
+    <svg class="dropzone-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <rect x="3" y="3" width="18" height="18" rx="2"/>
+      <circle cx="8.5" cy="8.5" r="1.5"/>
+      <polyline points="21 15 16 10 5 21"/>
+    </svg>
+    <h2>Drop a Forza screenshot</h2>
+    <p>Click anywhere to browse, drag a file in, or paste with <kbd>Ctrl</kbd>+<kbd>V</kbd>.</p>
+    <p id="dropzoneCapture"></p>
+    <input type="file" id="fileInput" accept="image/*">
+  </div>
+
+  <canvas id="canvas" hidden></canvas>
+</main>
+
+<div id="infoOverlay" class="overlay" role="dialog" aria-modal="true" aria-labelledby="infoTitle" hidden>
+  <div class="modal">
+    <button id="infoClose" class="modal-close" type="button" title="Close" aria-label="Close">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <line x1="18" y1="6" x2="6" y2="18"/>
+        <line x1="6" y1="6" x2="18" y2="18"/>
+      </svg>
+    </button>
+    <div class="modal-body" id="infoBody"></div>
+  </div>
+</div>
+
+<script type="module" src="./main.js"></script>
+</body>
+</html>

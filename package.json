@@ -1,0 +1,9 @@
+{
+  "name": "forza-map-finder",
+  "version": "2.0.0",
+  "description": "Highlights undiscovered roads on the Forza Horizon map. PC live capture or Xbox screenshot upload.",
+  "private": true,
+  "scripts": {
+    "start": "npx -y serve ."
+  }
+}
